@@ -7,15 +7,16 @@ import json
 import os
 from io import StringIO
 from flask import Flask
+import pytz  # Yangi qo'shilgan kutubxona
 
-# Flask ilovasini yaratish
+# Flask ilovasi
 app = Flask(__name__)
 
 @app.route('/health')
 def health():
     return "Bot is running", 200
 
-# Google Sheets API sozlamalari
+# Google Sheets sozlamalari
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive'
@@ -35,7 +36,7 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN muhit o'zgaruvchisi topilmadi!")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# USER STATUS — fayl orqali saqlash uchun yordamchi funksiyalar
+# USER STATUS funksiyalari (o'zgarmaydi)
 user_status = {}
 
 def load_user_status():
@@ -48,21 +49,17 @@ def save_user_status():
     with open("user_status.json", "w") as f:
         json.dump(user_status, f)
 
-# Bot ishga tushganda foydalanuvchi holatini yuklaymiz
 load_user_status()
 
-# Asosiy menyuni yuborish
 def show_main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("Keldim"), types.KeyboardButton("Ketdim"))
     bot.send_message(chat_id, "Iltimos, tanlang:", reply_markup=markup)
 
-# /start komandasi
 @bot.message_handler(commands=['start'])
 def start(message):
     show_main_menu(message.chat.id)
 
-# Matnli xabarlar
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     if message.text in ['Keldim', 'Ketdim']:
@@ -74,7 +71,6 @@ def handle_text(message):
     else:
         bot.send_message(message.chat.id, "❗️Iltimos, faqat 'Keldim' yoki 'Ketdim' ni tanlang.")
 
-# Geolokatsiya xabari
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
     chat_id = str(message.chat.id)
@@ -91,7 +87,9 @@ def handle_location(message):
     lat = message.location.latitude
     lon = message.location.longitude
 
-    now = datetime.now()
+    # O'zbekiston vaqt zonasini o'rnatish (UTC+5)
+    tz = pytz.timezone('Asia/Tashkent')
+    now = datetime.now(tz)
 
     # DATE + TIME formula
     date_formula = f'=DATE({now.year};{now.month};{now.day})+TIME({now.hour};{now.minute};{now.second})'
@@ -100,17 +98,17 @@ def handle_location(message):
     maps_url = f"https://maps.google.com/?q={lat},{lon}"
     hyperlink_formula = f'=HYPERLINK("{maps_url}"; "{status}")'
 
-    # 1. Yangi qator qo‘shamiz
-    sheet.append_row(['TEMP', name, username, user_id, lat, lon, ''])  # G ustun ('') — bo‘sh qoldiriladi
+    # Yangi qator qo'shish
+    sheet.append_row(['TEMP', name, username, user_id, lat, lon, ''])
 
-    # 2. So‘nggi qator raqamini topamiz
+    # So'nggi qator raqamini topish
     last_row = len(sheet.get_all_values())
 
-    # 3. A va H ustunlarini formula bilan yangilaymiz
-    sheet.update_cell(last_row, 1, date_formula)       # A = Sana
+    # A va H ustunlarini yangilash
+    sheet.update_cell(last_row, 1, date_formula)  # A = Sana
     sheet.update_cell(last_row, 7, hyperlink_formula)  # H = Joylashuv havolasi
 
-    # 4. Tugatish
+    # Tugatish
     bot.send_message(message.chat.id, "✅ Ma'lumotlar Google Sheets'ga yozildi.")
     user_status.pop(chat_id)
     save_user_status()
@@ -118,8 +116,6 @@ def handle_location(message):
 
 if __name__ == "__main__":
     import threading
-    # Flask serverini alohida thread'da ishga tushirish
-    port = int(os.getenv("PORT", 8000))  # Render PORT muhit o'zgaruvchisidan o'qish, default 8000
+    port = int(os.getenv("PORT", 8000))
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
-    # Telegram bot polling
     bot.polling(none_stop=True)
