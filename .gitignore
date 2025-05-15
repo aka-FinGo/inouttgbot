@@ -1,0 +1,6 @@
+# .gitignore
+user_status.json
+*.json
+__pycache__/
+*.pyc
+.env
