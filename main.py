@@ -118,4 +118,8 @@ if __name__ == "__main__":
     import threading
     port = int(os.getenv("PORT", 8000))
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
-    bot.polling(none_stop=True)
+    try:
+        bot.polling(none_stop=True, timeout=60)
+    except Exception as e:
+        print(f"Polling error: {e}")
+        bot.stop_polling()
