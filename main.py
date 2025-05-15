@@ -6,6 +6,14 @@ from datetime import datetime
 import json
 import os
 from io import StringIO
+from flask import Flask
+
+# Flask ilovasini yaratish
+app = Flask(__name__)
+
+@app.route('/health')
+def health():
+    return "Bot is running", 200
 
 # Google Sheets API sozlamalari
 SCOPES = [
@@ -13,18 +21,15 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive'
 ]
 
-# Google Sheets JSON kalitlarini muhit o'zgaruvchisidan o'qish
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 if not GOOGLE_CREDENTIALS:
     raise ValueError("GOOGLE_CREDENTIALS muhit o'zgaruvchisi topilmadi!")
 
-# JSON mazmunini fayl sifatida o'qish uchun StringIO ishlatamiz
 creds_dict = json.loads(GOOGLE_CREDENTIALS)
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open('2025 Attendance').sheet1
 
-# Telegram bot token
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN muhit o'zgaruvchisi topilmadi!")
@@ -111,6 +116,10 @@ def handle_location(message):
     save_user_status()
     show_main_menu(message.chat.id)
 
-# Bot ishga tushadi
 if __name__ == "__main__":
+    import threading
+    # Flask serverini alohida thread'da ishga tushirish
+    port = int(os.getenv("PORT", 8000))  # Render PORT muhit o'zgaruvchisidan o'qish, default 8000
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
+    # Telegram bot polling
     bot.polling(none_stop=True)
